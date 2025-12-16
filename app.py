@@ -40,7 +40,7 @@ with st.sidebar:
 
     st.markdown("---")
     st.markdown("### Model Info")
-    st.caption("Model: Qwen2-VL-7B (LoRA Fine-tuned)")
+    st.caption("Model: Qwen2.5-VL-7B (LoRA Fine-tuned)")
     st.caption("Task: Medical Image Analysis")
 
 # Main Area

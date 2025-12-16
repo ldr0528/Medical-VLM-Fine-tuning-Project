@@ -1,10 +1,10 @@
 # Medical VLM Fine-tuning & Inference Assistant
 
-这是一个基于 [Unsloth](https://github.com/unslothai/unsloth) 和 [Qwen2-VL](https://github.com/QwenLM/Qwen2-VL) 的医疗视觉大模型微调与部署项目。本项目演示了如何使用 LoRA 高效微调多模态大模型，使其具备专业的医疗影像诊断能力，并提供了一个基于 Streamlit 的可视化对话界面。
+这是一个基于 [Unsloth](https://github.com/unslothai/unsloth) 和 [Qwen2.5-VL](https://github.com/QwenLM/Qwen2.5-VL) 的医疗视觉大模型微调与部署项目。本项目演示了如何使用 LoRA 高效微调多模态大模型，使其具备专业的医疗影像诊断能力，并提供了一个基于 Streamlit 的可视化对话界面。
 
 ## 🚀 项目功能
 
-*   **高效微调**：使用 Unsloth 加速 Qwen2-VL-7B 的 LoRA 微调，大幅降低显存需求并提升训练速度。
+*   **高效微调**：使用 Unsloth 加速 Qwen2.5-VL-7B 的 LoRA 微调，大幅降低显存需求并提升训练速度。
 *   **医疗场景适配**：针对医疗影像（如 X 光、CT 等）进行指令微调，使模型能够像放射科医生一样描述病灶。
 *   **可视化交互**：提供 Streamlit Web 应用，支持上传图片进行多轮医学对话。
 *   **多轮对话支持**：微调后的模型支持结合上下文的多轮问答。
@@ -43,7 +43,13 @@
 
 ### 1. 模型微调
 
-#### 使用 Python 脚本
+#### 方式一：使用 Jupyter Notebook
+打开 `视觉模型微调.ipynb`，按照步骤运行代码块：
+- 加载 Qwen2.5-VL-7B-Instruct 模型
+- 加载并预处理医疗数据集
+- 配置 LoRA 参数
+
+#### 方式二：使用 Python 脚本
 直接运行以下命令进行训练：
 ```bash
 python train.py
