@@ -13,7 +13,6 @@
 
 ```
 .
-├── 视觉模型微调.ipynb    # 主微调脚本 (Jupyter Notebook)
 ├── train.py            # 微调脚本 (Python 版本)
 ├── app.py              # Streamlit 可视化部署应用
 ├── requirements.txt    # 项目依赖文件
@@ -43,10 +42,8 @@
 ## 🏃‍♂️ 快速开始
 
 ### 1. 模型微调
-#### 方式一：使用 Jupyter Notebook
-打开 `视觉模型微调.ipynb`，按照步骤运行代码块。
 
-#### 方式二：使用 Python 脚本
+#### 使用 Python 脚本
 直接运行以下命令进行训练：
 ```bash
 python train.py
@@ -61,10 +58,8 @@ streamlit run app.py
 访问终端显示的 URL（通常是 http://localhost:8501 或 http://localhost:6006）即可使用。
 
 ## 🧪 效果展示
-
-| 原始输入 | 模型诊断 |
-| :--- | :--- |
-| <img src="docs/example.jpg" width="200"> | **放射科医生描述**：全景 X 光片显示右侧上颌后部有溶骨性病变... |
+![alt text](image.png)
+![alt text](image-1.png)
 
 ## 🤝 致谢
 
