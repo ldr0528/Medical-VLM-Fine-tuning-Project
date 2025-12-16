@@ -1,0 +1,22 @@
+# Models and weights
+lora_model/
+merged_model/
+models/
+*.pt
+*.pth
+*.bin
+*.safetensors
+
+# Environment and cache
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.conda/
+.cache/
+wandb/
+outputs/
+unsloth_compiled_cache/
+
+# System
+.DS_Store
+.autodl/
