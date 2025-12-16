@@ -58,8 +58,8 @@ streamlit run app.py
 访问终端显示的 URL（通常是 http://localhost:8501 或 http://localhost:6006）即可使用。
 
 ## 🧪 效果展示
-![alt text](image.png)
-![alt text](image-1.png)
+![alt text](docs/image.png)
+![alt text](docs/image-1.png)
 
 
 
