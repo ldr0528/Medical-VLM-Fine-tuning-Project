@@ -7,6 +7,12 @@ models/
 *.bin
 *.safetensors
 
+# Large Data files
+data/*.parquet
+data/*.arrow
+data/train-*.parquet
+data/test-*.parquet
+
 # Environment and cache
 __pycache__/
 *.pyc
