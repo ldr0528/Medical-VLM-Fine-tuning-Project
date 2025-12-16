@@ -1,10 +1,10 @@
 # train.py - Medical VLM Fine-tuning Script
 # 
 # 🏥 医疗视觉大模型微调脚本
-# 基于 Unsloth 和 Qwen2.5-VL
+# 基于 Unsloth 和 Qwen3-VL
 #
 # 功能：
-# 1. 加载 4-bit 量化的 Qwen2.5-VL 模型
+# 1. 加载 4-bit 量化的 Qwen3-VL 模型
 # 2. 配置 LoRA 适配器
 # 3. 加载并处理医疗数据集
 # 4. 执行监督微调 (SFT)
