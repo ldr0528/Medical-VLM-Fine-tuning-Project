@@ -19,7 +19,7 @@ from datasets import load_dataset
 from transformers import TextStreamer
 
 def main():
-    print("🚀 Starting Medical VLM Fine-tuning...")
+    print(" Starting Medical VLM Fine-tuning...")
 
     # =================================================================
     # 1. 配置与模型加载
@@ -30,7 +30,7 @@ def main():
     OUTPUT_DIR = "outputs"
     LORA_OUTPUT_DIR = "lora_model"
 
-    print(f"📦 Loading model from: {MODEL_NAME}")
+    print(f" Loading model from: {MODEL_NAME}")
     
     # 加载模型和分词器
     model, tokenizer = FastVisionModel.from_pretrained(
@@ -44,7 +44,7 @@ def main():
     # =================================================================
     # 2. 配置 LoRA 适配器
     # =================================================================
-    print("⚙️ Configuring LoRA adapter...")
+    print(" Configuring LoRA adapter...")
     model = FastVisionModel.get_peft_model(
         model,
         finetune_vision_layers=False,  # 不微调视觉层
@@ -62,13 +62,13 @@ def main():
     # =================================================================
     # 3. 数据集加载与处理
     # =================================================================
-    print("📚 Loading and processing dataset...")
+    print("Loading and processing dataset...")
     # 加载本地数据集
     # 假设 ./data 目录下有正确的 train 数据
     try:
         dataset = load_dataset("./data", split="train")
     except Exception as e:
-        print(f"❌ Error loading dataset: {e}")
+        print(f" Error loading dataset: {e}")
         print("Please ensure your dataset is in the './data' directory.")
         return
 
@@ -95,12 +95,12 @@ def main():
         return {"messages": conversation}
 
     converted_dataset = [convert_to_conversation(sample) for sample in dataset]
-    print(f"✅ Processed {len(converted_dataset)} samples.")
+    print(f" Processed {len(converted_dataset)} samples.")
 
     # =================================================================
     # 4. 执行微调 (Training)
     # =================================================================
-    print("🏋️ Starting training...")
+    print("Starting training...")
     
     # 切换到训练模式
     FastVisionModel.for_training(model)
