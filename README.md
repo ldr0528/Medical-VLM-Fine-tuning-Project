@@ -69,7 +69,3 @@ streamlit run app.py
 ![alt text](docs/image-2.png)
 
 
-
-## 📜 许可证
-
-MIT License
