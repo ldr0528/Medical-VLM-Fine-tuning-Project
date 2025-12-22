@@ -51,7 +51,7 @@ modelscope download --model unsloth/Qwen3-VL-8B-Instruct-bnb-4bit --local_dir mo
 
 ### 1. 模型微调
 
-#### 方式二：使用 Python 脚本 (SFT)
+#### 使用 Python 脚本 (SFT)
 直接运行以下命令进行监督微调：
 ```bash
 python train.py

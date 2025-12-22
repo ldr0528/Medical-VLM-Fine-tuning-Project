@@ -26,22 +26,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Sidebar for Image Upload and Controls
-with st.sidebar:
-    st.header("🖼️ Image Upload")
-    uploaded_file = st.file_uploader("Upload Medical Image", type=["jpg", "jpeg", "png"])
-    
-    st.divider()
-    
-    st.header("⚙️ Controls")
-    if st.button("🗑️ Clear Conversation", use_container_width=True):
-        st.session_state.messages = []
-        st.rerun()
 
-    st.markdown("---")
-    st.markdown("### Model Info")
-    st.caption("Model: Qwen3-VL-8B (LoRA Fine-tuned)")
-    st.caption("Task: Medical Image Analysis")
 
 # Main Area
 st.title("🏥 Medical Assistant")
@@ -107,12 +92,12 @@ with st.sidebar:
         # Clear cached model to force reload (optional, but streamlit cache handles args)
         # st.cache_resource.clear() 
     
-    uploaded_file = st.file_uploader("Upload Medical Image", type=["jpg", "jpeg", "png"])
+    uploaded_file = st.file_uploader("Upload Medical Image", type=["jpg", "jpeg", "png"], key="sidebar_uploader")
     
     st.divider()
     
     st.header("⚙️ Controls")
-    if st.button("🗑️ Clear Conversation", use_container_width=True):
+    if st.button("🗑️ Clear Conversation", use_container_width=True, key="clear_conv_btn_sidebar"):
         st.session_state.messages = []
         st.rerun()
 
@@ -121,23 +106,20 @@ with st.sidebar:
     st.caption(f"Model: Qwen3-VL-8B ({model_option})")
     st.caption("Task: Medical Image Analysis")
 
+    # Display current image in sidebar if uploaded
+    if uploaded_file:
+        image = Image.open(uploaded_file).convert("RGB")
+        st.session_state.uploaded_image = image
+        st.image(image, caption="Current Image", use_container_width=True)
+
 # Main Area
 st.title("🏥 Medical Assistant")
 st.markdown("Upload a medical image and ask questions to the AI radiologist.")
 
-# Handle Image Upload
-if uploaded_file:
-    # Load and display image
-    image = Image.open(uploaded_file).convert("RGB")
-    st.session_state.uploaded_image = image
-    
-    # Display image in sidebar
-    with st.sidebar:
-        st.image(image, caption="Current Image", use_container_width=True)
-    
-    # Also display image in main area (collapsible) for better visibility
+# Display image in main area (collapsible) for better visibility
+if st.session_state.uploaded_image:
     with st.expander("👁️ View High-Resolution Image", expanded=True):
-        st.image(image, use_container_width=True)
+        st.image(st.session_state.uploaded_image, use_container_width=True)
 
 # Load the model
 with st.status(f"🚀 Loading {model_option} Model...", expanded=True) as status:
@@ -226,7 +208,10 @@ if prompt := st.chat_input("Ask about the image (e.g., 'Describe the pathology')
                     st.session_state.uploaded_image,
                     input_text,
                     add_special_tokens=False,
-                    return_tensors="pt"
+                    return_tensors="pt",
+                    # Fix for "Mismatch in image token count": Disable truncation or increase max_length
+                    truncation=False, 
+                    # max_length=4096 # Optional: Set a safe upper limit if needed
                 ).to("cuda")
                 
                 # Streamer setup
