@@ -74,6 +74,6 @@ streamlit run app.py
 
 ## 🧪 效果展示
 ![alt text](docs/image.png)
-![alt text](docs/image-2.png)
+![alt text](docs/image-4.png)
 
 
