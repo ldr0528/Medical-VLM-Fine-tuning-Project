@@ -28,11 +28,11 @@ def main():
     # 直接加载 SFT 后的 LoRA 模型作为起点
     # 如果 lora_model 存在，直接加载它；否则加载基座
     if os.path.exists("lora_model"):
-        print(f"📦 Loading SFT model from: lora_model")
+        print(f"Loading SFT model from: lora_model")
         MODEL_NAME = "lora_model" # Unsloth 支持直接加载 LoRA 目录
     else:
         MODEL_NAME = "/root/autodl-tmp/models/unsloth/Qwen3-VL-8B-Instruct-bnb-4bit"
-        print(f"⚠️ 'lora_model' not found! Using base model: {MODEL_NAME}")
+        print(f"'lora_model' not found! Using base model: {MODEL_NAME}")
 
     OUTPUT_DIR = "outputs_grpo"
 
@@ -46,7 +46,7 @@ def main():
     )
     
     # 配置 LoRA (GRPO 也需要 LoRA 来节省显存)
-    print("⚙️ Configuring LoRA for GRPO...")
+    print(" Configuring LoRA for GRPO...")
     
     # 检查模型是否已经加载了 Adapter (从 lora_model 加载时会自动带上)
     # 如果已经有 adapter，我们只需要确保它处于训练模式
