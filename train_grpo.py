@@ -20,7 +20,7 @@ from datasets import load_dataset
 from transformers import AutoTokenizer
 
 def main():
-    print("🚀 Starting Medical VLM GRPO Training...")
+    print(" Starting Medical VLM GRPO Training...")
 
     # =================================================================
     # 1. 配置与模型加载
@@ -46,7 +46,7 @@ def main():
     )
     
     # 配置 LoRA (GRPO 也需要 LoRA 来节省显存)
-    print(" Configuring LoRA for GRPO...")
+    print("⚙️ Configuring LoRA for GRPO...")
     
     # 检查模型是否已经加载了 Adapter (从 lora_model 加载时会自动带上)
     # 如果已经有 adapter，我们只需要确保它处于训练模式
@@ -117,7 +117,7 @@ def main():
     # =================================================================
     # 3. 定义奖励函数 (Reward Functions)
     # =================================================================
-    print("⚖️ Defining Reward Functions...")
+    print("Defining Reward Functions...")
 
     # 1. 格式奖励：检查是否包含 XML 标签，且内容充实
     def xml_format_reward(completions, **kwargs):
@@ -214,28 +214,28 @@ def main():
             intersection = ref_tokens.intersection(pred_tokens)
             
             if not ref_tokens:
-                 # 参考答案无效时，给一个中间分保底
-                 rewards.append(0.5)
-                 continue
+                # 参考答案无效时，给一个中间分保底
+                rewards.append(0.5)
+                continue
 
             if not intersection:
-                 rewards.append(0.0)
+                rewards.append(0.0)
             else:
-                 # 计算覆盖率
-                 recall = len(intersection) / len(ref_tokens)
-                 
-                 # 阶梯奖励设计：更密集的阶梯，确保有分可得
-                 if recall >= 0.9:
-                     score = 2.0
-                 elif recall >= 0.6:
-                     score = 1.5
-                 elif recall >= 0.3:
-                     score = 1.0
-                 else:
-                     # 只要有命中 (0 < recall < 0.3)，就给 0.5 分
-                     score = 0.5
-                     
-                 rewards.append(score)
+                # 计算覆盖率
+                recall = len(intersection) / len(ref_tokens)
+                
+                # 阶梯奖励设计：更密集的阶梯，确保有分可得
+                if recall >= 0.9:
+                    score = 2.0
+                elif recall >= 0.6:
+                    score = 1.5
+                elif recall >= 0.3:
+                    score = 1.0
+                else:
+                    # 只要有命中 (0 < recall < 0.3)，就给 0.5 分
+                    score = 0.5
+                    
+                rewards.append(score)
         return rewards
 
     # =================================================================
