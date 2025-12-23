@@ -1,42 +1,38 @@
-# train_grpo.py - Medical VLM Reinforcement Learning (GRPO) Script
+# train.py - Medical VLM Fine-tuning Script
 # 
-# 🏥 医疗视觉大模型强化学习脚本 (GRPO)
+# 🏥 医疗视觉大模型微调脚本
 # 基于 Unsloth 和 Qwen3-VL
 #
 # 功能：
-# 1. 加载 SFT 后的模型作为初始策略
-# 2. 定义奖励函数 (Reward Functions)：
-#    - XML 格式奖励：强制模型使用 <reasoning>...</reasoning> <answer>...</answer> 格式
-#    - 长度奖励：鼓励更详细的推理过程
-# 3. 执行 GRPO 训练：让模型学会“先思考，再回答”
-# 4. 保存 RL 后的模型权重
+# 1. 加载 4-bit 量化的 Qwen3-VL 模型
+# 2. 配置 LoRA 适配器
+# 3. 加载并处理医疗数据集
+# 4. 执行监督微调 (SFT)
+# 5. 保存微调后的 LoRA 权重
 
 import os
-import re
 import torch
 from unsloth import FastVisionModel, is_bf16_supported
-from trl import GRPOTrainer, GRPOConfig
+from unsloth.trainer import UnslothVisionDataCollator
+from trl import SFTTrainer, SFTConfig
 from datasets import load_dataset
-from transformers import AutoTokenizer
+from transformers import TextStreamer
 
 def main():
-    print("🚀 Starting Medical VLM GRPO Training...")
+    print(" Starting Medical VLM Fine-tuning...")
 
     # =================================================================
     # 1. 配置与模型加载
     # =================================================================
-    # 直接加载 SFT 后的 LoRA 模型作为起点
-    # 如果 lora_model 存在，直接加载它；否则加载基座
-    if os.path.exists("lora_model"):
-        print(f"📦 Loading SFT model from: lora_model")
-        MODEL_NAME = "lora_model" # Unsloth 支持直接加载 LoRA 目录
-    else:
-        MODEL_NAME = "/root/autodl-tmp/models/unsloth/Qwen3-VL-8B-Instruct-bnb-4bit"
-        print(f"⚠️ 'lora_model' not found! Using base model: {MODEL_NAME}")
+    # 模型路径 (请修改为你的本地路径或 HuggingFace 模型 ID)
+    # 注意：这里使用 4-bit 量化版本以节省显存
+    MODEL_NAME = "/root/autodl-tmp/models/unsloth/Qwen3-VL-8B-Instruct-bnb-4bit"
+    OUTPUT_DIR = "outputs"
+    LORA_OUTPUT_DIR = "lora_model"
 
-    OUTPUT_DIR = "outputs_grpo"
-
-    # 加载模型
+    print(f" Loading model from: {MODEL_NAME}")
+    
+    # 加载模型和分词器
     model, tokenizer = FastVisionModel.from_pretrained(
         model_name=MODEL_NAME,
         load_in_4bit=True,
@@ -44,234 +40,143 @@ def main():
         use_gradient_checkpointing="unsloth",
         local_files_only=True,
     )
-    
-    # 配置 LoRA (GRPO 也需要 LoRA 来节省显存)
-    print("⚙️ Configuring LoRA for GRPO...")
-    
-    # 检查模型是否已经加载了 Adapter (从 lora_model 加载时会自动带上)
-    # 如果已经有 adapter，我们只需要确保它处于训练模式
-    if hasattr(model, "peft_config") and len(model.peft_config) > 0:
-        print("✅ Model already has LoRA adapters. Enabling training mode...")
-        FastVisionModel.for_training(model)
-    else:
-        # 只有当模型是纯基座时，才需要添加新的 LoRA
-        print("🆕 Adding new LoRA adapters...")
-        model = FastVisionModel.get_peft_model(
-            model,
-            finetune_vision_layers=False,
-            finetune_language_layers=True,
-            finetune_attention_modules=True,
-            finetune_mlp_modules=True,
-            r=16,
-            lora_alpha=16,
-            lora_dropout=0,
-            bias="none",
-            use_rslora=False,
-        )
 
     # =================================================================
-    # 2. 准备数据集与 Prompt 格式
+    # 2. 配置 LoRA 适配器
     # =================================================================
-    print(" Loading dataset...")
-    # 这里我们复用 Radiology-mini 数据集，但我们需要构造不带 Answer 的 Prompt
-    # 让模型自己生成推理过程和答案，然后通过奖励函数来评估
-    dataset = load_dataset("./data", split="train")
+    print(" Configuring LoRA adapter...")
+    model = FastVisionModel.get_peft_model(
+        model,
+        finetune_vision_layers=False,  # 不微调视觉层
+        finetune_language_layers=True, # 重点微调语言层
+        finetune_attention_modules=True,
+        finetune_mlp_modules=True,
+        r=16,           # LoRA rank
+        lora_alpha=16,  # Alpha 参数
+        lora_dropout=0,
+        bias="none",
+        use_rslora=False,
+        loftq_config=None,
+    )
 
-    # 定义系统提示词，强制要求特定的输出格式
-    SYSTEM_PROMPT = """
-    你是一名专业的放射科医生。请分析给定的医疗图像。
-    请严格按照以下格式输出你的诊断结果，并且只输出这两个标签的内容：
-    
-    <reasoning>
-    在这里写下你的观察过程、推理逻辑和分析细节。
-    </reasoning>
-    <answer>
-    在这里给出最终的诊断结论。
-    </answer>
-    """
+    # =================================================================
+    # 3. 数据集加载与处理
+    # =================================================================
+    print("Loading and processing dataset...")
+    # 加载本地数据集
+    # 假设 ./data 目录下有正确的 train 数据
+    try:
+        dataset = load_dataset("./data", split="train")
+    except Exception as e:
+        print(f" Error loading dataset: {e}")
+        print("Please ensure your dataset is in the './data' directory.")
+        return
 
-    # GRPO 需要的数据格式通常是 prompt 列
-    def format_data(sample):
-        # 构造输入 Prompt
-        messages = [
-            {
-                "role": "system", 
-                "content": [{"type": "text", "text": SYSTEM_PROMPT}]
-            },
+    # 定义系统指令
+    instruction = "你是一名专业的放射科医生，请准确描述你在图片看到的内容。"
+
+    # 数据转换函数
+    def convert_to_conversation(sample):
+        conversation = [
             {
                 "role": "user",
                 "content": [
-                    {"type": "image", "image": sample['image']},
-                    {"type": "text", "text": "请分析这张图片。"}
+                    {"type": "text", "text": instruction},
+                    {"type": "image", "image": sample['image']}
+                ]
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {"type": "text", "text": sample['caption']}
                 ]
             }
         ]
-        return {
-            "prompt": messages,
-            "ground_truth": sample['caption'] # 1) 改名 target -> ground_truth
-        }
+        return {"messages": conversation}
 
-    # 1) 改名 target -> ground_truth, 并增加 num_proc=4 加速
-    dataset = dataset.map(format_data, remove_columns=["image", "caption", "image_id", "cui"], num_proc=4)
+    converted_dataset = [convert_to_conversation(sample) for sample in dataset]
+    print(f" Processed {len(converted_dataset)} samples.")
 
     # =================================================================
-    # 3. 定义奖励函数 (Reward Functions)
+    # 4. 执行微调 (Training)
     # =================================================================
-    print("⚖️ Defining Reward Functions...")
-
-    # 1. 格式奖励：检查是否包含 XML 标签 
-    def xml_format_reward(completions, **kwargs):
-        rewards = []
-        pattern = r"<reasoning>.*?</reasoning>\s*<answer>.*?</answer>"
-        for completion in completions:
-            text = completion[0]["content"] if isinstance(completion, list) else completion
-            match = re.search(pattern, text, re.DOTALL)
-            rewards.append(0.5 if match else 0.0) # 降低权重，从 1.0 降到 0.5
-        return rewards
-
-    # 2. 长度惩罚 (Length Penalty)：防止模型无意义堆砌字数 
-    # 目标是控制冗余，超过目标长度才扣分
-    def length_penalty_reward(completions, **kwargs):
-        rewards = []
-        target_length = 300 # 降低目标长度，鼓励简洁
-        for completion in completions:
-            text = completion[0]["content"] if isinstance(completion, list) else completion
-            reasoning_match = re.search(r"<reasoning>(.*?)</reasoning>", text, re.DOTALL)
-            if reasoning_match:
-                reasoning_text = reasoning_match.group(1)
-                length = len(reasoning_text)
-                # 软惩罚：超过 target_length 后，惩罚力度稍微加大，但不要太狠，避免模型不敢说话
-                if length > target_length:
-                     penalty = (length - target_length) / 50.0 * 0.1 # 每超50字扣0.1分
-                     rewards.append(-min(penalty, 1.0)) # 最多扣1分
-                else:
-                     rewards.append(0.0)
-            else:
-                rewards.append(0.0)
-        return rewards
+    print("Starting training...")
     
-    # 3. 步骤奖励 (Step Reward)：鼓励结构化推理 (新增)
-    def step_reward(completions, **kwargs):
-        rewards = []
-        # 检测 "1.", "Step 1", "首先", "第一" 等步骤词
-        step_patterns = [r"\d+\.", r"Step \d+", r"首先", r"其次", r"最后", r"第一", r"第二"]
-        for completion in completions:
-            text = completion[0]["content"] if isinstance(completion, list) else completion
-            reasoning_match = re.search(r"<reasoning>(.*?)</reasoning>", text, re.DOTALL)
-            if reasoning_match:
-                reasoning_text = reasoning_match.group(1)
-                step_count = 0
-                for p in step_patterns:
-                    step_count += len(re.findall(p, reasoning_text))
-                # 每个步骤加 0.1 分，上限 0.5 分
-                rewards.append(min(step_count * 0.1, 0.5))
-            else:
-                rewards.append(0.0)
-        return rewards
+    # 切换到训练模式
+    FastVisionModel.for_training(model)
 
-    # 4. 准确率奖励 (Accuracy)：主目标 (改进版 - 实体关键词覆盖率)
-    # 1) 签名修改：target -> ground_truth, 兼容 **kwargs
-    def accuracy_reward(completions, ground_truth, **kwargs):
-        rewards = []
-        for completion, ref_answer in zip(completions, ground_truth):
-            text = completion[0]["content"] if isinstance(completion, list) else completion
-            # 尝试提取 <answer> 内容
-            answer_match = re.search(r"<answer>(.*?)</answer>", text, re.DOTALL)
-            
-            # 提取预测文本：如果有标签取标签内，否则取最后一段，再否则取全文
-            if answer_match:
-                pred_answer = answer_match.group(1).lower().strip()
-            elif "<answer>" in text:
-                pred_answer = text.split("<answer>")[-1].lower().strip()
-            else:
-                pred_answer = text.lower().strip()
-            
-            # 预处理：移除标点符号，只保留字母数字和空格
-            pred_clean = re.sub(r'[^\w\s]', ' ', pred_answer)
-            ref_clean = re.sub(r'[^\w\s]', ' ', ref_answer.lower())
-            
-            # 分词并过滤停用词
-            stop_words = {"the", "is", "a", "an", "of", "in", "on", "at", "and", "with", "to", "for", "it", "this", "that"}
-            ref_tokens = set([w for w in ref_clean.split() if w not in stop_words and len(w) > 2])
-            pred_tokens = set([w for w in pred_clean.split() if w not in stop_words and len(w) > 2])
-            
-            if not ref_tokens:
-                rewards.append(0.5) # 如果参考答案为空或全是停用词，给个中间分
-                continue
-            
-            # 计算 Recall (覆盖率)
-            intersection = ref_tokens.intersection(pred_tokens)
-            recall = len(intersection) / len(ref_tokens)
-            
-            # 奖励设计：
-            # 1. 基础分：只要有重叠就给分
-            # 2. 阶梯奖励：覆盖率越高，奖励指数级上升
-            if recall == 0:
-                score = 0.0
-            elif recall < 0.3:
-                score = 0.5
-            elif recall < 0.6:
-                score = 1.0
-            elif recall < 0.9:
-                score = 1.5
-            else:
-                score = 2.0
-                
-            rewards.append(score)
-        return rewards
-
-    # =================================================================
-    # 4. 执行 GRPO 训练
-    # =================================================================
-    print(" Starting GRPO training...")
-    
-    training_args = GRPOConfig(
-        output_dir=OUTPUT_DIR,
-        run_name="grpo_medical_vlm",
-        learning_rate=5e-6,          # RL 通常需要更低的学习率 (MD 建议 1e-6 ~ 1e-5)
-        adam_beta1=0.9,
-        adam_beta2=0.99,
-        weight_decay=0.1,
-        warmup_ratio=0.1,
-        lr_scheduler_type="cosine",
-        logging_steps=1,
-        per_device_train_batch_size=1,
-        gradient_accumulation_steps=4,
-        num_generations=4,           # 每个 prompt 生成多少个样本用于对比 (Group Size)
-        max_prompt_length=512,
-        max_completion_length=384,   # 允许生成的最大长度，从 512 降低到 384 以减少截断概率
-        max_steps=50,                # 演示用
-        save_steps=10,
-        report_to="none",
-        use_vllm=False,              # 如果显存够大且安装了 vLLM 可以开启加速
-        bf16=is_bf16_supported(),
-        
-        # 1) 训练目标与“参考策略 + KL 约束”
-        # GRPO 的核心稳定器配置
-        beta=0.04,                   # KL coefficient (trl 中通常叫 beta)，MD 建议 0.01-0.1
-        # clip_range=0.2,            # TRL 的 GRPOConfig 可能不直接暴露 clip_range，通常内置处理或默认值
-        # temperature=0.8,           # 生成采样温度，影响探索多样性
-    )
-
-    trainer = GRPOTrainer(
+    trainer = SFTTrainer(
         model=model,
-        processing_class=tokenizer,
-        reward_funcs=[xml_format_reward, length_penalty_reward, step_reward, accuracy_reward],
-        args=training_args,
-        train_dataset=dataset,
+        tokenizer=tokenizer,
+        data_collator=UnslothVisionDataCollator(model, tokenizer),
+        train_dataset=converted_dataset,
+        args=SFTConfig(
+            per_device_train_batch_size=2,  # 显存较小可设为 1
+            gradient_accumulation_steps=4,
+            max_steps=30,                   # 演示用步数，实际训练请调大 (e.g., 60-100)
+            learning_rate=2e-4,
+            warmup_steps=5,
+            lr_scheduler_type="cosine",
+            bf16=is_bf16_supported(),
+            optim="adamw_8bit",
+            weight_decay=0.01,
+            seed=3407,
+            logging_steps=1,
+            output_dir=OUTPUT_DIR,
+            report_to="none",
+            remove_unused_columns=False,
+            dataset_text_field="",
+            dataset_kwargs={"skip_prepare_dataset": True},
+            dataset_num_proc=4,
+            max_seq_length=2048,
+        )
     )
 
-    trainer.train()
-    print(" GRPO Training completed.")
+    trainer_stats = trainer.train()
+    print("✅ Training completed.")
 
     # =================================================================
     # 5. 保存模型
     # =================================================================
-    GRPO_OUTPUT_DIR = "grpo_model"
-    print(f" Saving GRPO model to '{GRPO_OUTPUT_DIR}'...")
-    model.save_pretrained(GRPO_OUTPUT_DIR)
-    tokenizer.save_pretrained(GRPO_OUTPUT_DIR)
-    print(" Model saved successfully!")
+    print(f"💾 Saving LoRA model to '{LORA_OUTPUT_DIR}'...")
+    model.save_pretrained(LORA_OUTPUT_DIR)
+    tokenizer.save_pretrained(LORA_OUTPUT_DIR)
+    print("✅ Model saved successfully!")
+
+    # =================================================================
+    # 6. (可选) 简单的推理测试
+    # =================================================================
+    print("\n🔍 Running post-training inference test...")
+    FastVisionModel.for_inference(model)
+    
+    image = dataset[0]['image']
+    test_messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": instruction},
+                {"type": "image"}
+            ]
+        }
+    ]
+    
+    input_text = tokenizer.apply_chat_template(test_messages, add_generation_prompt=True)
+    inputs = tokenizer(
+        image,
+        input_text,
+        add_special_tokens=False,
+        return_tensors="pt"
+    ).to("cuda")
+
+    text_streamer = TextStreamer(tokenizer, skip_prompt=True)
+    _ = model.generate(
+        **inputs,
+        streamer=text_streamer,
+        max_new_tokens=128,
+        use_cache=True,
+        temperature=1.5,
+        min_p=0.1,
+    )
 
 if __name__ == "__main__":
     main()
